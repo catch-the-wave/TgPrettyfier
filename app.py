@@ -4,10 +4,9 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(layout="wide", page_title="Telegram Json prettifier")
+st.set_page_config(layout="wide", page_title="Telegram JSON prettyfier")
 
-st.title("Telegram Json prettifier")
-# st.subheader("Process your Telegram chat for minimal token usage with Claude")
+st.title("Telegram JSON prettyfier")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your Telegram chat JSON file", type=["json"])
@@ -50,8 +49,8 @@ if uploaded_file is not None:
             
             processed_messages.append(processed_msg)
         
-        # Filter settings in horizontal layout
-        # st.subheader("Filter Settings")
+        # Main Filter settings
+        st.subheader("Main Filters")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -66,25 +65,28 @@ if uploaded_file is not None:
         with col4:
             hide_time = st.checkbox("Hide time", value=False)
         
-        # Keywords filtering
-        keywords_input = st.text_input("Filter by keywords (comma separated, leave empty to show all)")
-
-        # Define export filename here (moved up from its previous position)
+        # Additional filters moved here
+        # st.subheader("Additional Filters")
+        col1, col2 = st.columns(2)
+    
+        with col1:
+            # Keywords filtering
+            keywords_input = st.text_input("Filter by keywords (comma separated, leave empty to show all)")
+    
+        with col2:
+            # Save from message number
+            save_from_msg = st.number_input("Filter from message #", min_value=0, max_value=len(processed_messages), value=0, step=1, 
+                                    help="Start saving messages from this position (0 = start from beginning)")
+        
+        # Define export filename here
         default_filename = data.get('name', 'telegram_chat') + "_filtered"
         export_filename = default_filename  # Initialize with default
         
         # Process filter button
         if st.button("Apply Filters"):
-            # Process the keywords
-            keywords = [k.strip().lower() for k in keywords_input.split(',') if k.strip()]
-            
-            # Filter messages
+            # Initial processing - show all messages first
             filtered_messages = []
             for msg in messages:
-                # Skip forwarded messages if excluded
-                if exclude_forwarded and 'forwarded_from' in msg:
-                    continue
-                
                 # Get the text content
                 text = msg.get('text', '')
                 if isinstance(text, list):
@@ -97,12 +99,7 @@ if uploaded_file is not None:
                             extracted_text += item['text']
                     text = extracted_text
                 
-                # Filter by keywords if they are provided
-                if keywords:
-                    if not any(keyword.lower() in text.lower() for keyword in keywords):
-                        continue
-                
-                # Prepare the filtered message with preferred order
+                # Add to filtered messages in the desired order
                 filtered_msg = {
                     'text': text
                 }
@@ -114,16 +111,33 @@ if uploaded_file is not None:
                 # Add forwarded_from if it exists and we're including forwarded messages
                 if not exclude_forwarded and 'forwarded_from' in msg:
                     filtered_msg['forwarded_from'] = msg.get('forwarded_from', '')
+                else:
+                    # Skip forwarded messages if excluded
+                    if 'forwarded_from' in msg and exclude_forwarded:
+                        continue
                 
                 # Handle from field based on settings
                 if not hide_from:
                     filtered_msg['from'] = msg.get('from', '')
                 
+                # Process the keywords
+                keywords = [k.strip().lower() for k in keywords_input.split(',') if k.strip()]
+                
+                # Filter by keywords if they are provided
+                if keywords:
+                    if not any(keyword.lower() in str(text).lower() for keyword in keywords):
+                        continue
+                
+                # Skip messages before the selected starting position
+                if len(filtered_messages) < save_from_msg:
+                    filtered_messages.append(filtered_msg)  # Add to count but don't display
+                    continue
+                
                 filtered_messages.append(filtered_msg)
             
-            # Save filtered messages to session state
-            st.session_state.filtered_messages = filtered_messages
-            st.session_state.export_filename = export_filename
+            # Adjust filtered_messages to start from save_from_msg
+            if save_from_msg > 0:
+                filtered_messages = filtered_messages[save_from_msg:]
             
             # Display filtered messages in a scrollable table
             filtered_df = pd.DataFrame(filtered_messages)
@@ -144,7 +158,7 @@ if uploaded_file is not None:
                 st.info(f"Approximate character count: {total_chars} (~{total_chars // 4} tokens)")
             
             # Generate exports
-            st.subheader("Export Options")
+            # st.subheader("Export Options")
             
             # Allow user to customize export filename
             export_filename = st.text_input("Export filename (without extension)", value=default_filename)
