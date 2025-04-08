@@ -39,6 +39,9 @@ if uploaded_file is not None:
             # Include reposts/forwarded messages
             include_reposts = st.checkbox("Include forwarded messages", value=False)
             
+            # Include forwarded_from field
+            include_forwarded_from = st.checkbox("Include 'forwarded_from' field", value=False)
+            
             # Keywords filtering
             st.subheader("Filter by keywords")
             keywords_input = st.text_input("Enter keywords (comma separated)")
@@ -72,11 +75,17 @@ if uploaded_file is not None:
                             continue
                     
                     # Add message to filtered results
-                    filtered_messages.append({
+                    filtered_msg = {
                         'date': msg.get('date', ''),
                         'from': msg.get('from', '') if include_names else '',
                         'text': text
-                    })
+                    }
+                    
+                    # Add forwarded_from if the checkbox is checked and it exists
+                    if include_forwarded_from and 'forwarded_from' in msg:
+                        filtered_msg['forwarded_from'] = msg.get('forwarded_from', '')
+                    
+                    filtered_messages.append(filtered_msg)
                 
                 # Save filtered messages to session state
                 st.session_state.filtered_messages = filtered_messages
@@ -89,9 +98,9 @@ if uploaded_file is not None:
             if 'filtered_messages' in st.session_state:
                 st.subheader("Message Preview")
                 
-                # Display a sample of filtered messages
-                preview_df = pd.DataFrame(st.session_state.filtered_messages[:10])
-                st.dataframe(preview_df, use_container_width=True)
+                # Display all filtered messages in a scrollable table
+                preview_df = pd.DataFrame(st.session_state.filtered_messages)
+                st.dataframe(preview_df, use_container_width=True, height=400)
                 
                 # Calculate total character count as a rough token estimate
                 total_chars = sum(len(str(msg.get('from', ''))) + len(str(msg.get('text', ''))) for msg in st.session_state.filtered_messages)
